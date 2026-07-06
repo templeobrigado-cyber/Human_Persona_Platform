@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  /* 共通ニュートラル */
+  --color-surface: #fafaf9;
+  --color-card: #ffffff;
+  --color-ink: #1c1917;
+  --color-ink-muted: #78716c;
+  --color-line: #e7e5e4;
+
+  /* 占い版（fortune） */
+  --color-fortune: #6d28d9;
+  --color-fortune-deep: #4c1d95;
+  --color-fortune-soft: #f5f3ff;
+  --color-fortune-accent: #b45309;
+
+  /* 企業版（business） */
+  --color-business: #2563eb;
+  --color-business-deep: #1e3a8a;
+  --color-business-soft: #eff6ff;
+
+  /* チャート用 */
+  --color-chart-fill: #8b5cf6;
+  --color-chart-fill-biz: #3b82f6;
+}
+
+@theme inline {
+  --font-sans: var(--font-noto-sans-jp), "Hiragino Kaku Gothic ProN", sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}

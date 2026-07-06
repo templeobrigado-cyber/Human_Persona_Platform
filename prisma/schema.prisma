@@ -1,0 +1,95 @@
+// HPP 診断結果の永続化スキーマ
+// 04_DB完全設計.md がベース。認証未実装のため users の代わりに匿名の Diagnosis を親にする。
+// （認証導入時に Diagnosis へ userId を追加して users と紐づける想定）
+//
+// DBはSupabase（PostgreSQL）。接続文字列は .env / Vercel環境変数の DATABASE_URL に設定する
+// （Supabaseダッシュボード → Connect → Transaction pooler の接続文字列を推奨）。
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Diagnosis {
+  id        String   @id @default(cuid())
+  variant   String // "fortune" | "business"
+  birthDate DateTime? // 占い版のみ（本命星の算出元）
+  /// 結果画面の忠実な再現用スナップショット（StoredResultのJSON文字列）
+  payload   String
+  createdAt DateTime @default(now())
+
+  mbtiResult      MbtiResult?
+  bigFiveResult   BigFiveResult?
+  enneagramResult EnneagramResult?
+  kyuseiResult    KyuseiResult?
+  personaProfile  PersonaProfile?
+
+  @@map("diagnoses")
+}
+
+/// ユーザー向け表示名は「タイプコンパス」（テーブル名は内部識別子として維持）
+model MbtiResult {
+  diagnosisId String    @id
+  diagnosis   Diagnosis @relation(fields: [diagnosisId], references: [id], onDelete: Cascade)
+  type        String // 例: "ESTJ"
+  ei          Int // E側の割合（0-100）
+  sn          Int // S側の割合
+  tf          Int // T側の割合
+  jp          Int // J側の割合
+
+  @@map("mbti_results")
+}
+
+model BigFiveResult {
+  diagnosisId       String    @id
+  diagnosis         Diagnosis @relation(fields: [diagnosisId], references: [id], onDelete: Cascade)
+  openness          Int
+  conscientiousness Int
+  extraversion      Int
+  agreeableness     Int
+  neuroticism       Int
+
+  @@map("bigfive_results")
+}
+
+model EnneagramResult {
+  diagnosisId String    @id
+  diagnosis   Diagnosis @relation(fields: [diagnosisId], references: [id], onDelete: Cascade)
+  type        Int
+  wing        Int
+
+  @@map("enneagram_results")
+}
+
+/// 占い版のみ。getsumeisei（月命星）はPhase3で追加予定
+model KyuseiResult {
+  diagnosisId String    @id
+  diagnosis   Diagnosis @relation(fields: [diagnosisId], references: [id], onDelete: Cascade)
+  honmeisei   Int // 1-9
+  gogyou      String // 木/火/土/金/水
+
+  @@map("kyusei_results")
+}
+
+/// 企業版=standard（gogyouBonusはnull）、占い版=fortune（gogyouBonusあり）
+model PersonaProfile {
+  diagnosisId   String    @id
+  diagnosis     Diagnosis @relation(fields: [diagnosisId], references: [id], onDelete: Cascade)
+  variantType   String // "standard" | "fortune"
+  creativity    Int
+  leadership    Int
+  empathy       Int
+  stability     Int
+  challenge     Int
+  logic         Int
+  communication Int
+  discipline    Int
+  /// 五行による加点内訳（JSON文字列、占い版のみ）
+  gogyouBonus   String?
+
+  @@map("persona_profiles")
+}
