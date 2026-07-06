@@ -230,3 +230,25 @@ UIの作り込みに入るため、デザインを含めた指示コンテキス
 - AI鑑定/AI分析（保留中）— 相性ページのAI分析文生成も同時に実装できる
 - 共有・相性ページのOGP画像
 - マイページ（認証）
+
+## 2026-07-06 18:40 GitHub公開＋Supabase(PostgreSQL)対応（Vercelデプロイ準備）
+
+### 受けた指示
+GitHub・Vercelへアップできるか？→ 課題（未git化・VercelでSQLite不可）を説明し、フル機能公開（B案）で進行。GitHubリポジトリURLとSupabaseプロジェクトの提供を受けた。
+
+### 対応内容
+- **PostgreSQL切り替え**: `schema.prisma`のproviderを`postgresql`へ、アダプタを`@prisma/adapter-pg`（`PrismaPg`）へ差し替え。`@prisma/adapter-better-sqlite3`と`dev.db`は削除。DATABASE_URL未設定時は明示エラー
+- `package.json` — `build`を`prisma generate && next build`に（Vercelビルド対応）
+- `.gitignore` — `/src/generated/`（Prisma生成物）、`*.db`、`/.claude/`を追加。`.env*`は元から除外済み
+- `.env` — Supabase接続文字列のプレースホルダ＋取得手順コメント（git管理外）
+- **git初期化＆push**: `templeobrigado-cyber/Human_Persona_Platform` のmainへ初回コミットをpush。機密・生成物が含まれないことをステージ内容で確認済み
+- 検証: DB接続なしでbuild／test（49件）／eslintすべてクリーン（/r・/compatibilityは動的レンダリングのためビルド時DB不要）
+
+### 残作業（ユーザー操作）
+1. Supabaseダッシュボード → Connect → **Session pooler** の接続文字列を取得し、ローカル`.env`の`DATABASE_URL`に設定 → `npx prisma db push`でテーブル作成
+2. Vercel → Add New Project → GitHubリポジトリをimport → 環境変数`DATABASE_URL`（同じ接続文字列）を設定 → Deploy
+
+### 補足
+- Supabaseの「Publishable key（sb_publishable_…）」はREST/JSクライアント用でPrismaでは使わない（公開されても問題ない設計のキー）
+- 接続文字列はSession pooler（ポート5432・IPv4対応）を推奨。Direct connectionはIPv6のみでVercelから繋がらない場合がある
+- ローカル開発もSupabaseを共用する（SQLiteは廃止）。DATABASE_URL未設定の間、共有URL・相性診断はローカルで動かない
