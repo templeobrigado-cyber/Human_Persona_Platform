@@ -244,11 +244,47 @@ GitHub・Vercelへアップできるか？→ 課題（未git化・VercelでSQLi
 - **git初期化＆push**: `templeobrigado-cyber/Human_Persona_Platform` のmainへ初回コミットをpush。機密・生成物が含まれないことをステージ内容で確認済み
 - 検証: DB接続なしでbuild／test（49件）／eslintすべてクリーン（/r・/compatibilityは動的レンダリングのためビルド時DB不要）
 
+### 対応内容（続き・Supabase接続完了まで）
+- Supabaseの「Connect」→「ORM」タブから取得した接続文字列を採用（`DATABASE_URL`=Transaction pooler:6543+pgbouncer=true／`DIRECT_URL`=Session pooler:5432）の2本立て構成に対応：`prisma.config.ts`のdatasource urlを`DIRECT_URL`優先に変更（CLI操作はプール接続を張れないセッションを使うため）。アプリ実行時（`src/lib/db.ts`）は引き続き`DATABASE_URL`（プール接続）
+- パスワード設定でのつまずきを解決：①Database password再発行は確認ダイアログ「Generate a password」経由と判明、②ユーザーが`.env`の`[YOUR-PASSWORD]`プレースホルダを置換する際に**大括弧ごと**残してしまい認証エラー（P1000）→ パスワード先頭末尾が`[`/`]`かをスクリプトでチェックして特定・解消
+- `npx prisma db push`成功。Supabase上に6テーブル（diagnoses/mbti_results/bigfive_results/enneagram_results/kyusei_results/persona_profiles）を作成
+- ブラウザ通し確認：占い版81問回答→Supabaseへ保存→共有ID発行→`/r/[id]`をサーバーレンダリングで表示。`pg`クライアントでSupabase上のテーブル一覧と`diagnoses`件数（1件）を直接確認
+- build／test（49件）／eslint 最終確認すべてクリーン
+
 ### 残作業（ユーザー操作）
-1. Supabaseダッシュボード → Connect → **Session pooler** の接続文字列を取得し、ローカル`.env`の`DATABASE_URL`に設定 → `npx prisma db push`でテーブル作成
-2. Vercel → Add New Project → GitHubリポジトリをimport → 環境変数`DATABASE_URL`（同じ接続文字列）を設定 → Deploy
+1. Vercel → Add New Project → GitHubリポジトリをimport → 環境変数`DATABASE_URL`と`DIRECT_URL`（ローカルの`.env`と同じ値）を設定 → Deploy
 
 ### 補足
 - Supabaseの「Publishable key（sb_publishable_…）」はREST/JSクライアント用でPrismaでは使わない（公開されても問題ない設計のキー）
-- 接続文字列はSession pooler（ポート5432・IPv4対応）を推奨。Direct connectionはIPv6のみでVercelから繋がらない場合がある
-- ローカル開発もSupabaseを共用する（SQLiteは廃止）。DATABASE_URL未設定の間、共有URL・相性診断はローカルで動かない
+- ローカル開発もSupabaseを共用する（SQLiteは廃止済み）
+- パスワードリセット時の注意（再発生防止）：Supabaseの「Reset database password」はダイアログの「Generate a password」リンクを押して生成→その場でコピーが必要（自動表示ではない）。`.env`のプレースホルダ`[YOUR-PASSWORD]`は大括弧ごと削除して実際の値に置き換えること
+
+## 2026-07-07 07:00 Vercel本番デプロイ完了＋Supabase RLS対応＋パスワードローテーション
+
+### 受けた指示
+Vercelでのビルドエラー対応、Supabase Security Advisorの警告対応、パスワード漏えい対応（複数回のリセット）を経て本番公開まで実施。
+
+### 対応内容
+- **Vercelビルドエラー「No Output Directory named "dist"」** — プロジェクト設定の一時的な不整合が原因と判明。Framework Preset（Next.js）・Output Directory（Overrideなし＝デフォルト）を確認し解消
+- **Supabase Security Advisor対応**: 6テーブル全てで「RLS Disabled in Public」警告 → Prismaの接続ロール（`postgres`、`rolbypassrls=true`）はRLSに影響されないことを確認した上で、`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`を6テーブルに適用。適用後もアプリの読み書き（既存共有ページ表示・新規診断保存）が正常动作することを確認
+- **パスワードローテーション対応（複数回）**: デプロイ作業中に`.env`の差分がシステム経由で平文表示される事象が発生したため、都度パスワードを再発行。過程で以下のヒューマンエラーを都度診断・解消：
+  - プレースホルダ`[YOUR-PASSWORD]`の大括弧だけ残す
+  - `DATABASE_URL`と`DIRECT_URL`で異なる値を貼ってしまう
+  - Supavisor（プール接続）へのパスワード反映に数秒〜数十秒のタイムラグがあり、直後の接続テストが失敗する（待機後リトライで解消）
+  - 手動編集時に旧パスワードの末尾3文字が消し残る（`DATABASE_URL`のみ19文字、`DIRECT_URL`は16文字、という文字数差から検出）
+  - 最終的にユーザーが直接パスワードを提示 → アシスタントが`.env`を直接編集する方式に切替え、確実性を確保
+- `prisma.config.ts` — CLI操作（`db push`等）はプール接続を張れないセッションを使うため`DIRECT_URL`優先に変更。アプリ実行時（`src/lib/db.ts`）は引き続き`DATABASE_URL`
+- Vercel環境変数（`DATABASE_URL`・`DIRECT_URL`）を最新パスワードに同期し、Redeploy
+- **本番動作確認**: TOP（200）／共有結果ページ`/r/[id]`（200・Supabaseから正しくINFP等のデータを取得）／存在しないIDの404／MBTI表記なし、をcurlで確認
+
+### UI微調整
+- `src/components/LikertScale.tsx` — 5択の丸ボタンを外側→中央にかけて段階的に縮小（44px→36px→28px→36px→44px）するデザインに変更。タップ領域は44×44pxを維持したまま見た目の丸だけ縮小（`label`に固定サイズ＋`flex items-center justify-center`、内側`span`のみサイズ可変）
+
+### 検証結果
+- build／test（49件）／eslint すべてクリーン
+- 本番URL https://human-persona-platform.vercel.app/ が診断・共有URL・相性診断まで含めて完全稼働
+
+### 補足・教訓
+- パスワードリセット系の作業は「生成→確定ボタンまで押す→その場でコピー」を1セットで確実に行うこと。生成のみ（未確定）で終えると実際のDBパスワードは変わらない
+- Vercelは環境変数を編集しただけでは反映されない。**必ずRedeployが必要**
+- `.env`の差分がツール経由で見える場合があるため、パスワードは可能な限り短命化し、作業完了後に必ずローテーションする運用が安全

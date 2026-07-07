@@ -4,6 +4,9 @@ import type { Rating, Variant } from "@/lib/diagnosis-flow";
 
 const RATINGS: Rating[] = [1, 2, 3, 4, 5];
 
+/** 外側は現状サイズ、中央に向かって段階的に小さくする（両隣→やや小さく、中央→最小） */
+const CIRCLE_SIZE_CLASSES = ["size-11", "size-9", "size-7", "size-9", "size-11"];
+
 const CHECKED_CLASSES: Record<Variant, string> = {
   fortune: "peer-checked:border-fortune peer-checked:bg-fortune",
   business: "peer-checked:border-business peer-checked:bg-business",
@@ -27,8 +30,8 @@ export function LikertScale({
       <legend className="float-left mb-4 w-full text-base font-medium">{question}</legend>
       <div className="clear-both mx-auto w-fit">
         <div className="flex items-center gap-3 sm:gap-5" role="radiogroup" aria-label={question}>
-          {RATINGS.map((rating) => (
-            <label key={rating} className="cursor-pointer">
+          {RATINGS.map((rating, index) => (
+            <label key={rating} className="flex size-11 cursor-pointer items-center justify-center">
               <input
                 type="radio"
                 name={name}
@@ -39,7 +42,7 @@ export function LikertScale({
               />
               <span
                 aria-hidden="true"
-                className={`block size-11 rounded-full border-2 border-line bg-card transition-colors hover:border-ink-muted peer-focus-visible:ring-2 peer-focus-visible:ring-ink peer-focus-visible:ring-offset-2 ${CHECKED_CLASSES[variant]}`}
+                className={`block rounded-full border-2 border-line bg-card transition-colors hover:border-ink-muted peer-focus-visible:ring-2 peer-focus-visible:ring-ink peer-focus-visible:ring-offset-2 ${CIRCLE_SIZE_CLASSES[index]} ${CHECKED_CLASSES[variant]}`}
               />
               <span className="sr-only">{rating}</span>
             </label>
